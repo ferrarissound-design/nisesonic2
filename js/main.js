@@ -75,8 +75,8 @@ class Game {
     this.paused = false;
     this.camLag = 0;
     this.lockCamX = null;
-    this.cam.x = Math.max(0, this.player.x - 192);
-    this.cam.y = this.player.y - 128;
+    this.cam.x = Math.max(0, this.player.x - 152);
+    this.cam.y = this.player.y - 96;
     this.clampCam();
     Sound.playMusic(level.music);
   }
@@ -206,15 +206,15 @@ class Game {
     if (this.camLag > 0) this.camLag--;
     else if (this.lockCamX === null) {
       const sx = p.x - c.x;
-      if (sx > 200) c.x += Math.min(sx - 200, 24);
-      if (sx < 184) c.x -= Math.min(184 - sx, 24);
+      if (sx > 160) c.x += Math.min(sx - 160, 24);
+      if (sx < 144) c.x -= Math.min(144 - sx, 24);
     } else {
       // ゴール後・ボス戦ではカメラを固定位置へ寄せる
       c.x += Math.sign(this.lockCamX - c.x) * Math.min(Math.abs(this.lockCamX - c.x), 4);
     }
-    let focus = 128;
-    if (p.lookUp && p.lookTimer > 60) focus += 80;
-    if (p.crouch && p.lookTimer > 60) focus -= 80;
+    let focus = 96;
+    if (p.lookUp && p.lookTimer > 60) focus += 64;
+    if (p.crouch && p.lookTimer > 60) focus -= 64;
     const sy = p.y - c.y;
     if (p.onGround || p.loop) {
       const sp = Math.abs(p.gsp) >= 8 ? 16 : 6;
@@ -380,6 +380,7 @@ class Game {
   // ---------- 描画 ----------
   render() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
     if (this.state === 'title') return this.renderTitle();
     if (this.state === 'gameover') return this.renderGameOver();
     if (this.state === 'ending') return this.renderEnding();
@@ -389,8 +390,8 @@ class Game {
     drawBackground(ctx, cam, L.palette, this.frame, L);
     ctx.save();
     ctx.translate(-cam.x, -cam.y);
-    for (const lp of L.loops) if (lp.cx + lp.r + 30 > cam.x && lp.cx - lp.r - 30 < cam.x + VIEW_W) drawLoopBack(ctx, lp, this.pal);
-    for (const d of L.deco) if (d.x > cam.x - 40 && d.x < cam.x + VIEW_W + 40) drawDeco(ctx, d, this.frame, this.pal);
+    for (const lp of L.loops) if (lp.cx + lp.r + 30 > cam.x && lp.cx - lp.r - 30 < cam.x + VIEW_W) drawLoopBack(ctx, lp, this.pal, L.palette);
+    for (const d of L.deco) if (d.x > cam.x - 40 && d.x < cam.x + VIEW_W + 40) drawDeco(ctx, d, this.frame, this.pal, L.palette);
     drawTerrain(ctx, L, cam, this.pal);
     drawBoxes(ctx, L, this.pal);
     drawPlatforms(ctx, L, this.pal);
@@ -407,13 +408,11 @@ class Game {
     if (this.phase === 'results') this.renderResults();
   }
 
+  // ポーズとコマ番号を決めてドット絵を描く
   renderPlayer() {
     const p = this.player;
-    if (p.invuln > 0 && p.state === 'normal' && (p.invuln >> 2) % 2) return;
-    let pose = 'stand';
     const sp = Math.abs(p.onGround || p.loop ? p.gsp : p.vx);
-    p.runPhase = (p.runPhase || 0) + 0.12 + sp * 0.07;
-    p.ballRot = (p.ballRot || 0) + 0.25 + sp * 0.06;
+    let pose = 'stand';
     if (p.state === 'dead') pose = 'dead';
     else if (p.state === 'hurt') pose = 'hurt';
     else if (p.ball || p.spindash) pose = 'ball';
@@ -424,39 +423,33 @@ class Game {
     else if (p.balance) pose = 'balance';
     else if (sp >= 9.5) pose = 'dash';
     else if (sp > 0.1 || !p.onGround) pose = 'run';
-    if (p.spindash) p.ballRot += 0.6;
+
+    // 本家と同じく、速いほど 1 コマの長さが短くなる
+    p.animTimer = (p.animTimer || 0) - 1;
+    if (p.animTimer <= 0) {
+      p.animFrame = (p.animFrame || 0) + 1;
+      if (pose === 'ball') p.animTimer = p.spindash ? 1 : Math.max(1, 4 - Math.floor(sp / 2));
+      else p.animTimer = Math.max(1, 8 - Math.floor(sp));
+    }
+    let fi = p.animFrame;
+    if (pose === 'stand') fi = this.frame >> 5;
+    if (pose === 'balance' || pose === 'push') fi = this.frame >> 3;
 
     let ang = p.onGround || p.loop ? p.angle : 0;
-    if (Math.abs(ang) < 0.25 && !p.loop) ang = 0;
-    if (pose === 'ball' || pose === 'dead' || pose === 'hurt') ang = 0;
-    p.drawAngle += (ang - p.drawAngle) * (p.loop ? 1 : 0.5);
+    if (pose === 'ball' || pose === 'dead' || pose === 'hurt' || pose === 'crouch') ang = 0;
+    // 傾きは 45 度刻み
+    ang = Math.round(ang / (Math.PI / 4)) * (Math.PI / 4);
 
-    ctx.save();
-    ctx.translate(Math.round(p.x), Math.round(p.y));
-    ctx.rotate(p.drawAngle);
-    ctx.scale(p.dir, 1);
-    const t = pose === 'ball' ? p.ballRot : pose === 'run' || pose === 'dash' ? p.runPhase : this.frame;
-    drawHero(ctx, pose, t);
-    ctx.restore();
+    const blink = p.invuln > 0 && p.state === 'normal' && (p.invuln >> 2) % 2;
+    if (!blink) drawHero(ctx, pose, fi, p.x, p.y, p.dir, ang);
 
-    if (p.shield && p.state !== 'dead') {
-      const r = 21 + Math.sin(this.frame * 0.2);
-      ctx.fillStyle = 'rgba(90,200,255,0.25)';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(180,240,255,0.7)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, this.frame * 0.1, this.frame * 0.1 + 2);
-      ctx.stroke();
-    }
+    if (p.shield && p.state !== 'dead') drawShield(ctx, p.x, p.y, this.frame);
     if (p.invincible > 0) {
       for (let i = 0; i < 6; i++) {
         const a = this.frame * 0.25 + (i * Math.PI) / 3;
         const rr = 18 + Math.sin(this.frame * 0.3 + i) * 4;
         ctx.fillStyle = i % 2 ? '#ffe36b' : '#ffffff';
-        ctx.fillRect(p.x + Math.cos(a) * rr - 1.5, p.y + Math.sin(a) * rr - 1.5, 3, 3);
+        ctx.fillRect(Math.round(p.x + Math.cos(a) * rr) - 1, Math.round(p.y + Math.sin(a) * rr) - 1, 3, 3);
       }
     }
     if (p.shoes > 0 && sp > 4 && this.frame % 3 === 0) {
@@ -466,50 +459,48 @@ class Game {
 
   renderTitleCard() {
     const t = 170 - this.cardTimer;
-    const out = this.cardTimer < 40 ? (40 - this.cardTimer) * 14 : 0;
+    const out = this.cardTimer < 40 ? (40 - this.cardTimer) * 12 : 0;
     const slide = Math.max(0, 1 - t / 20);
-    ctx.save();
     if (t < 130) {
-      ctx.fillStyle = '#1f3fd6';
+      ctx.fillStyle = '#2040c0';
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
+    // 黄色の縦帯と赤い帯
+    const bx = Math.round(24 - slide * 160 - out);
+    ctx.fillStyle = OUTLINE;
+    ctx.fillRect(bx - 2, 0, 44, VIEW_H);
     ctx.fillStyle = '#ffd23a';
-    ctx.fillRect(40 - slide * 200 - out, 0, 46, VIEW_H);
-    ctx.fillStyle = '#e2262a';
-    ctx.beginPath();
-    ctx.moveTo(VIEW_W + slide * 300 + out, 150);
-    ctx.lineTo(120 + slide * 300 + out, 150);
-    ctx.lineTo(140 + slide * 300 + out, 176);
-    ctx.lineTo(VIEW_W + slide * 300 + out, 176);
-    ctx.fill();
-    ctx.font = '16px "Press Start 2P", monospace';
-    ctx.textBaseline = 'top';
-    const tx = 120 + slide * 400 + out;
-    hudText(ctx, `${this.level.name}`, tx, 90);
-    hudText(ctx, 'ZONE', tx + 70, 112);
-    ctx.font = '12px "Press Start 2P", monospace';
-    hudText(ctx, `ACT ${this.level.act}`, tx + 150, 158, '#ffd23a');
-    ctx.restore();
-    ctx.textBaseline = 'alphabetic';
+    ctx.fillRect(bx, 0, 40, VIEW_H);
+    ctx.fillStyle = '#c09000';
+    for (let y = 0; y < VIEW_H; y += 8) ctx.fillRect(bx + 32, y, 8, 4);
+    const rx = Math.round(100 + slide * 300 + out);
+    ctx.fillStyle = OUTLINE;
+    ctx.fillRect(rx - 2, 136, VIEW_W, 28);
+    ctx.fillStyle = '#e0302c';
+    ctx.fillRect(rx, 138, VIEW_W, 24);
+    ctx.fillStyle = '#901a18';
+    ctx.fillRect(rx, 158, VIEW_W, 4);
+    const tx = Math.round(84 + slide * 360 + out);
+    Text.draw(ctx, this.level.name, tx, 74, '#ffffff', { scale: 2 });
+    Text.draw(ctx, 'ZONE', tx + 70, 96, '#ffffff', { scale: 2 });
+    Text.draw(ctx, 'ACT', tx + 112, 145, '#ffffff');
+    Text.draw(ctx, String(this.level.act), tx + 136, 132, '#ffd23a', { scale: 4 });
   }
 
   renderResults() {
     const t = this.resultsTimer;
     const slide = Math.max(0, 1 - t / 30);
-    ctx.font = '10px "Press Start 2P", monospace';
-    ctx.textBaseline = 'top';
-    const x = 90 + slide * -300;
-    hudText(ctx, 'NISE GOT', x, 50);
-    hudText(ctx, `THROUGH ACT ${this.level.act}`, x + 20, 66);
-    const y0 = 110;
-    const r = 90 - slide * -300;
-    hudText(ctx, 'TIME BONUS', r, y0, '#ffd23a');
-    hudText(ctx, String(this.timeBonus), r + 160, y0);
-    hudText(ctx, 'RING BONUS', r, y0 + 18, '#ffd23a');
-    hudText(ctx, String(this.ringBonus), r + 160, y0 + 18);
-    hudText(ctx, 'SCORE', r, y0 + 40, '#ffd23a');
-    hudText(ctx, String(this.score), r + 160, y0 + 40);
-    ctx.textBaseline = 'alphabetic';
+    const x = Math.round(48 - slide * 300);
+    Text.draw(ctx, 'NISE GOT', x, 44, '#ffffff', { scale: 2 });
+    Text.draw(ctx, `THROUGH ACT ${this.level.act}`, x + 16, 64, '#ffffff', { scale: 2 });
+    const r = Math.round(72 + slide * 300);
+    const y0 = 104;
+    Text.draw(ctx, 'TIME BONUS', r, y0, HUD_YELLOW);
+    Text.draw(ctx, String(this.timeBonus), r + 176, y0, '#ffffff', { align: 'right' });
+    Text.draw(ctx, 'RING BONUS', r, y0 + 16, HUD_YELLOW);
+    Text.draw(ctx, String(this.ringBonus), r + 176, y0 + 16, '#ffffff', { align: 'right' });
+    Text.draw(ctx, 'SCORE', r, y0 + 36, HUD_YELLOW);
+    Text.draw(ctx, String(this.score), r + 176, y0 + 36, '#ffffff', { align: 'right' });
   }
 
   renderTitle() {
@@ -517,90 +508,72 @@ class Game {
     const L = this.titleLevel;
     const cam = { x: (t * 2) % (L.w - VIEW_W), y: L.maxY - 260 };
     drawBackground(ctx, cam, 'hill', t, L);
-    ctx.fillStyle = 'rgba(10,20,80,0.25)';
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    // エンブレム
     const cx = VIEW_W / 2;
-    const bob = Math.sin(t * 0.05) * 3;
-    ctx.save();
-    ctx.translate(cx, 92 + bob);
-    ellipse(ctx, 0, 0, 74, 52, 0, '#ffd23a');
-    ellipse(ctx, 0, 0, 68, 46, 0, '#1f3fd6');
-    ctx.fillStyle = '#ffffff22';
-    for (let i = -3; i <= 3; i++) ctx.fillRect(i * 20 - 2, -46, 4, 92);
-    ctx.save();
-    ctx.translate(-4, -6);
-    ctx.scale(2.6, 2.6);
-    drawHead(ctx, 0, 0, 'grin');
-    ctx.translate(14, 6);
-    ctx.rotate(-0.5);
-    drawGlove(ctx, 0, 0);
-    ctx.restore();
-    ctx.restore();
+    const bob = Math.round(Math.sin(t * 0.05) * 2);
+    // エンブレム
+    const emblem = Pixel.sprite('emblem', 160, 112, 80, 56, ['#ffd23a', '#c09000', '#2040c0', '#3a60e0', '#ffffff'], g => {
+      ellipse(g, 0, 0, 74, 52, 0, '#ffd23a');
+      ellipse(g, 0, 2, 70, 48, 0, '#c09000');
+      ellipse(g, 0, 0, 66, 44, 0, '#2040c0');
+      g.save();
+      g.beginPath();
+      g.ellipse(0, 0, 66, 44, 0, 0, Math.PI * 2);
+      g.clip();
+      g.fillStyle = '#3a60e0';
+      for (let i = -4; i <= 4; i++) g.fillRect(i * 16 - 3, -46, 6, 92);
+      g.restore();
+    });
+    Pixel.blit(ctx, emblem, cx, 72 + bob);
+    Pixel.blit(ctx, heroHeadSprite(2.4, 'grin'), cx - 2, 70 + bob);
 
     // ロゴ
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.font = '24px "Press Start 2P", monospace';
-    ctx.fillStyle = '#0b1a6b';
-    ctx.fillText('NISE SONIC', cx + 3, 130 + bob + 3);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('NISE SONIC', cx, 130 + bob);
-    ctx.fillStyle = '#e2262a';
-    ctx.fillRect(cx - 80, 160 + bob, 160, 14);
-    ctx.font = '8px "Press Start 2P", monospace';
-    ctx.fillStyle = '#fff';
-    ctx.fillText('THE HEDGEHOG?', cx, 163 + bob);
+    Text.draw(ctx, 'NISE SONIC', cx, 118 + bob, '#ffffff', { scale: 3, align: 'center' });
+    ctx.fillStyle = OUTLINE;
+    ctx.fillRect(cx - 62, 143 + bob, 124, 15);
+    ctx.fillStyle = '#e0302c';
+    ctx.fillRect(cx - 60, 145 + bob, 120, 11);
+    Text.draw(ctx, 'THE HEDGEHOG?', cx, 147 + bob, '#ffffff', { align: 'center', outline: false });
 
-    if ((t >> 5) % 2 === 0) {
-      ctx.font = '10px "Press Start 2P", monospace';
-      hudText(ctx, 'PRESS START', cx, 192);
-    }
-    ctx.font = '8px "Press Start 2P", monospace';
-    hudText(ctx, `HI-SCORE ${this.hiscore}`, cx, 212, '#ffd23a');
-    hudText(ctx, '←→ MOVE  ↓ ROLL  Z/SPACE JUMP  M MUTE', cx, 226, '#cfe0ff');
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+    if ((t >> 5) % 2 === 0) Text.draw(ctx, 'PRESS START', cx, 172, '#ffffff', { align: 'center' });
+    Text.draw(ctx, `HI-SCORE ${this.hiscore}`, cx, 190, HUD_YELLOW, { align: 'center' });
+    Text.draw(ctx, '<> MOVE  ~ ROLL  Z JUMP  M MUTE', cx, 206, '#cfe0ff', { align: 'center' });
   }
 
   renderGameOver() {
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     const k = Math.min(1, this.overTimer / 40);
-    ctx.font = '16px "Press Start 2P", monospace';
-    ctx.textBaseline = 'top';
-    hudText(ctx, 'GAME', VIEW_W / 2 - 80 - (1 - k) * 200, 110);
-    hudText(ctx, 'OVER', VIEW_W / 2 + 16 + (1 - k) * 200, 110);
-    ctx.textBaseline = 'alphabetic';
+    Text.draw(ctx, 'GAME', Math.round(VIEW_W / 2 - 76 - (1 - k) * 200), 100, '#ffffff', { scale: 3 });
+    Text.draw(ctx, 'OVER', Math.round(VIEW_W / 2 + 6 + (1 - k) * 200), 100, '#ffffff', { scale: 3 });
   }
 
   renderEnding() {
     const t = this.titleFrame;
     const L = this.titleLevel;
     drawBackground(ctx, { x: t * 3, y: L.maxY - 260 }, 'sunset', t, L);
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    // 走り抜ける主人公
-    ctx.save();
-    ctx.translate(VIEW_W / 2, 150);
-    drawHero(ctx, 'dash', t * 1.2);
-    ctx.restore();
-    ctx.fillStyle = '#3d5a2a';
-    ctx.fillRect(0, 169, VIEW_W, 71);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.font = '14px "Press Start 2P", monospace';
-    hudText(ctx, 'CONGRATULATIONS!', VIEW_W / 2, 40, '#ffd23a');
-    ctx.font = '8px "Press Start 2P", monospace';
-    hudText(ctx, 'NISE HILL ZONE CLEAR', VIEW_W / 2, 70);
-    hudText(ctx, `SCORE ${this.score}`, VIEW_W / 2, 90);
-    hudText(ctx, 'THANK YOU FOR PLAYING', VIEW_W / 2, 190);
-    if (this.endTimer > 120 && (t >> 5) % 2 === 0) hudText(ctx, 'PRESS START', VIEW_W / 2, 210, '#cfe0ff');
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#2f5a22';
+    ctx.fillRect(0, 160, VIEW_W, VIEW_H - 160);
+    ctx.fillStyle = '#58b23a';
+    ctx.fillRect(0, 156, VIEW_W, 5);
+    drawHero(ctx, 'dash', t >> 1, VIEW_W / 2, 137, 1, 0);
+    Text.draw(ctx, 'CONGRATULATIONS!', VIEW_W / 2, 36, HUD_YELLOW, { align: 'center', scale: 2 });
+    Text.draw(ctx, 'NISE HILL ZONE CLEAR', VIEW_W / 2, 66, '#ffffff', { align: 'center' });
+    Text.draw(ctx, `SCORE ${this.score}`, VIEW_W / 2, 84, '#ffffff', { align: 'center' });
+    Text.draw(ctx, 'THANK YOU FOR PLAYING', VIEW_W / 2, 176, '#ffffff', { align: 'center' });
+    if (this.endTimer > 120 && (t >> 5) % 2 === 0) Text.draw(ctx, 'PRESS START', VIEW_W / 2, 196, '#cfe0ff', { align: 'center' });
   }
 }
+
+// 画面に収まる最大の整数倍で拡大すると、ドットが均一できれいに見える
+function fitScreen() {
+  const k = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
+  const scale = k >= 2 ? Math.floor(k) : k;
+  canvas.style.width = `${Math.floor(VIEW_W * scale)}px`;
+  canvas.style.height = `${Math.floor(VIEW_H * scale)}px`;
+}
+window.addEventListener('resize', fitScreen);
+fitScreen();
 
 const game = new Game();
 window.game = game;

@@ -20,9 +20,9 @@ body {
   justify-content: center;
 }
 #screen {
-  width: min(100vw, calc(100vh * 424 / 240));
+  width: min(100vw, calc(100vh * 320 / 224));
   height: auto;
-  aspect-ratio: 424 / 240;
+  aspect-ratio: 320 / 224;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #000;
@@ -46,7 +46,7 @@ body {
     border: 2px solid rgba(255, 255, 255, 0.35);
     background: rgba(255, 255, 255, 0.12);
     color: rgba(255, 255, 255, 0.8);
-    font: 14px/1 'Press Start 2P', monospace;
+    font: bold 16px/1 monospace;
     border-radius: 14px;
     touch-action: none;
   }
