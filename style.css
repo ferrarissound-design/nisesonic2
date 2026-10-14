@@ -1,0 +1,87 @@
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #05071a;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#wrap {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#screen {
+  width: min(100vw, calc(100vh * 424 / 240));
+  height: auto;
+  aspect-ratio: 424 / 240;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  box-shadow: 0 0 40px rgba(60, 120, 255, 0.25);
+}
+
+/* タッチ操作（スマホ・タブレットのみ表示） */
+#touch {
+  display: none;
+}
+@media (hover: none) and (pointer: coarse) {
+  #touch {
+    display: block;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  #touch button {
+    pointer-events: auto;
+    position: absolute;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.8);
+    font: 14px/1 'Press Start 2P', monospace;
+    border-radius: 14px;
+    touch-action: none;
+  }
+  #touch button.on {
+    background: rgba(255, 210, 58, 0.45);
+  }
+  .pad {
+    position: absolute;
+    left: max(16px, env(safe-area-inset-left));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: 156px;
+    height: 156px;
+  }
+  .pad button {
+    width: 52px;
+    height: 52px;
+  }
+  .b-up { left: 52px; top: 0; }
+  .b-down { left: 52px; bottom: 0; }
+  .b-left { left: 0; top: 52px; }
+  .b-right { right: 0; top: 52px; }
+  .b-jump {
+    right: max(24px, env(safe-area-inset-right));
+    bottom: max(36px, env(safe-area-inset-bottom));
+    width: 84px;
+    height: 84px;
+    border-radius: 50% !important;
+    font-size: 22px !important;
+  }
+  .b-start {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: 96px;
+    height: 32px;
+    font-size: 9px !important;
+  }
+}
