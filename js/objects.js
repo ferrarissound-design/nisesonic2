@@ -112,11 +112,7 @@ class Monitor {
   }
   draw(ctx, game) {
     if (this.broken) {
-      ctx.fillStyle = '#6d6d78';
-      ctx.fillRect(this.x - 13, this.y - 6, 26, 6);
-      ctx.fillStyle = '#3c3c46';
-      ctx.fillRect(this.x - 10, this.y - 9, 8, 3);
-      ctx.fillRect(this.x + 3, this.y - 8, 7, 2);
+      drawBrokenMonitor(ctx, this.x, this.y);
       return;
     }
     drawMonitor(ctx, this.x, this.y, this.kind, game.frame);
@@ -202,24 +198,7 @@ class Spikes {
     }
   }
   draw(ctx) {
-    const l = this.x - this.w / 2;
-    ctx.fillStyle = '#5b5b66';
-    ctx.fillRect(l, this.y - 4, this.w, 4);
-    for (let i = 0; i < this.w / 8; i++) {
-      const sx = l + i * 8;
-      ctx.fillStyle = '#e4e4ee';
-      ctx.beginPath();
-      ctx.moveTo(sx, this.y - 4);
-      ctx.lineTo(sx + 4, this.y - 16);
-      ctx.lineTo(sx + 8, this.y - 4);
-      ctx.fill();
-      ctx.fillStyle = '#9b9bab';
-      ctx.beginPath();
-      ctx.moveTo(sx + 4, this.y - 16);
-      ctx.lineTo(sx + 8, this.y - 4);
-      ctx.lineTo(sx + 5, this.y - 4);
-      ctx.fill();
-    }
+    drawSpikes(ctx, this.x, this.y, this.w);
   }
 }
 
@@ -299,20 +278,8 @@ class Checkpoint {
     }
   }
   draw(ctx) {
-    const x = Math.round(this.x);
-    ctx.fillStyle = '#2a3dd6';
-    ctx.fillRect(x - 2, this.y - 44, 4, 44);
-    ctx.fillStyle = '#c9c9d9';
-    ctx.fillRect(x - 3, this.y - 4, 6, 4);
     const a = this.spin > 0 ? (this.spin / 60) * Math.PI * 6 : 0;
-    const bx = x + Math.sin(a) * 6;
-    const by = this.y - 48 - Math.cos(a) * 2;
-    ctx.fillStyle = this.active ? '#ff4040' : '#3a60ff';
-    ctx.beginPath();
-    ctx.arc(bx, by, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffffffaa';
-    ctx.fillRect(bx - 2, by - 3, 2, 2);
+    drawCheckpoint(ctx, this.x, this.y, a, this.active);
   }
 }
 
@@ -337,25 +304,11 @@ class Goal {
     }
   }
   draw(ctx, game) {
-    const x = Math.round(this.x);
-    ctx.fillStyle = '#8d8d9a';
-    ctx.fillRect(x - 2, this.y - 30, 4, 30);
     const spinT = this.triggered ? Math.min(this.t, 120) : 0;
     const a = spinT < 120 ? spinT * (0.45 - spinT * 0.0035) : Math.PI;
-    const w = Math.cos(a) * 22;
-    const face = this.triggered && this.t >= 120 ? 'hero' : (Math.cos(a) >= 0 ? 'boss' : 'hero');
-    ctx.fillStyle = '#ffd23a';
-    ctx.fillRect(x - Math.abs(w) - 2, this.y - 64, Math.abs(w) * 2 + 4, 36);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(x - Math.abs(w), this.y - 62, Math.abs(w) * 2, 32);
-    if (Math.abs(w) > 4) {
-      ctx.save();
-      ctx.translate(x, this.y - 46);
-      ctx.scale(Math.abs(w) / 22, 1);
-      if (face === 'hero') drawHeroFace(ctx);
-      else drawBossFace(ctx);
-      ctx.restore();
-    }
+    const w = Math.round((Math.abs(Math.cos(a)) * 22) / 2) * 2;
+    const face = this.triggered && this.t >= 120 ? 'hero' : Math.cos(a) >= 0 ? 'boss' : 'hero';
+    drawGoalSign(ctx, this.x, this.y, w, face);
   }
 }
 
@@ -473,12 +426,7 @@ class Bomb {
     }
   }
   draw(ctx) {
-    ctx.fillStyle = '#2b2b33';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = (this.t >> 2) % 2 ? '#ff4b2b' : '#ffd23a';
-    ctx.fillRect(this.x - 1, this.y - 10, 2, 4);
+    drawBomb(ctx, this.x, this.y, this.t);
   }
 }
 
@@ -498,17 +446,7 @@ class Blast {
     }
   }
   draw(ctx) {
-    const r = 6 + this.t * 0.8;
-    ctx.globalAlpha = 1 - this.t / 26;
-    ctx.fillStyle = '#ff7a2b';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffe36b';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, r * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    drawBlast(ctx, this.x, this.y, this.t);
   }
 }
 
@@ -519,24 +457,12 @@ class Explosion {
     this.y = y;
     this.t = 0;
     this.dead = false;
-    this.puffs = [];
-    for (let i = 0; i < 5; i++) {
-      this.puffs.push({ dx: (Math.random() - 0.5) * 16, dy: (Math.random() - 0.5) * 16, d: i * 2 });
-    }
   }
   update() {
     if (++this.t > 30) this.dead = true;
   }
   draw(ctx) {
-    for (const p of this.puffs) {
-      const lt = this.t - p.d;
-      if (lt < 0 || lt > 20) continue;
-      const r = 3 + lt * 0.6;
-      ctx.fillStyle = lt < 6 ? '#ffffff' : lt < 12 ? '#ffd23a' : '#a0a0a8';
-      ctx.beginPath();
-      ctx.arc(this.x + p.dx, this.y + p.dy - lt * 0.3, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawExplosion(ctx, this.x, this.y, this.t);
   }
 }
 
@@ -551,12 +477,7 @@ class Sparkle {
     if (++this.t > 16) this.dead = true;
   }
   draw(ctx) {
-    const s = this.t < 8 ? this.t : 16 - this.t;
-    ctx.fillStyle = '#fffbe0';
-    ctx.fillRect(this.x - s, this.y - 1, s * 2, 2);
-    ctx.fillRect(this.x - 1, this.y - s, 2, s * 2);
-    ctx.fillStyle = '#ffd23a';
-    ctx.fillRect(this.x - 2, this.y - 2, 4, 4);
+    drawSparkle(ctx, this.x, this.y, this.t);
   }
 }
 
@@ -589,38 +510,7 @@ class Animal {
     if (this.t > 300) this.dead = true;
   }
   draw(ctx) {
-    ctx.save();
-    ctx.translate(Math.round(this.x), Math.round(this.y));
-    if (this.vx < 0) ctx.scale(-1, 1);
-    if (this.kind === 'bird') {
-      ctx.fillStyle = '#4fb3ff';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 6, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#2f80d0';
-      const wing = Math.sin(this.t * 0.8) * 5;
-      ctx.beginPath();
-      ctx.moveTo(-2, -1);
-      ctx.lineTo(-8, -2 - wing);
-      ctx.lineTo(2, -2);
-      ctx.fill();
-      ctx.fillStyle = '#ffb02e';
-      ctx.fillRect(5, -1, 3, 2);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(2, -3, 2, 2);
-    } else {
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 6, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillRect(1, -11, 2, 7);
-      ctx.fillRect(4, -10, 2, 6);
-      ctx.fillStyle = '#ff8fb0';
-      ctx.fillRect(5, -1, 2, 2);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(3, -3, 2, 2);
-    }
-    ctx.restore();
+    drawAnimal(ctx, this.x, this.y, this.kind, this.t, this.vx < 0);
   }
 }
 
@@ -638,13 +528,7 @@ class ScorePopup {
     if (this.t > 50) this.dead = true;
   }
   draw(ctx) {
-    ctx.font = '8px "Press Start 2P", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#000';
-    ctx.fillText(this.text, this.x + 1, this.y + 1);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(this.text, this.x, this.y);
-    ctx.textAlign = 'left';
+    Text.draw(ctx, this.text, this.x, this.y - 7, '#ffffff', { align: 'center' });
   }
 }
 
@@ -663,12 +547,7 @@ class Dust {
     if (this.t > 16) this.dead = true;
   }
   draw(ctx) {
-    ctx.globalAlpha = 1 - this.t / 16;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, 2 + this.t * 0.25, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    drawDust(ctx, this.x, this.y, this.t);
   }
 }
 

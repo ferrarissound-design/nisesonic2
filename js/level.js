@@ -1,6 +1,6 @@
 // 地形（高さマップ）とステージデータの生成
-const VIEW_W = 424;
-const VIEW_H = 240;
+const VIEW_W = 320;
+const VIEW_H = 224;
 
 class Builder {
   constructor(len, startY) {
@@ -96,7 +96,12 @@ class Builder {
       return h[xi];
     };
     let maxY = 0;
-    for (let i = 0; i < w; i++) if (h[i] !== Infinity && h[i] > maxY) maxY = h[i];
+    let minY = Infinity;
+    for (let i = 0; i < w; i++) {
+      if (h[i] === Infinity) continue;
+      if (h[i] > maxY) maxY = h[i];
+      if (h[i] < minY) minY = h[i];
+    }
     const objects = [];
     for (const p of this.pending) {
       const gy = p.abs ? p.refY : ground(p.x);
@@ -118,6 +123,7 @@ class Builder {
       objects,
       deco: this.deco.filter(d => d.y !== Infinity),
       maxY,
+      minY,
       deathY: maxY + 160,
       ...meta,
     };

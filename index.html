@@ -5,14 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>NISE SONIC</title>
   <meta name="description" content="ブラウザで遊べる、ハリネズミの高速2Dアクション（ファンメイド）">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main id="wrap">
-    <canvas id="screen" width="424" height="240" aria-label="ゲーム画面"></canvas>
+    <canvas id="screen" width="320" height="224" aria-label="ゲーム画面"></canvas>
   </main>
 
   <div id="touch" aria-hidden="true">
@@ -26,6 +23,7 @@
     <button data-btn="jump" class="b-jump">A</button>
   </div>
 
+  <script src="js/pixel.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/input.js"></script>
   <script src="js/level.js"></script>
